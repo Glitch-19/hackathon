@@ -36,19 +36,20 @@ controls.enableDamping = true; // Adds a smooth inertia effect
 
 // --- MODEL AND TEXTURE LOGIC ---
 
-// 7. Load the 3D Model
+// 7. Product & Texture State
 const loader = new GLTFLoader();
-let tShirtMesh = null; // Backwards compatibility main mesh
-let tShirtMeshes = []; // All mesh parts to texture
-let debugTexturePlane = null; // Helper plane to verify texture visibility
-let testGridTexture = null; // Procedural UV test grid
-let lastUserTexture = null; // Remember last real texture when toggling grid
+let activeProductKey = 'shirt';
+let debugTexturePlane = null;
+let testGridTexture = null;
+let lastUserTexture = null;
 
-// --- COVER CONFIG ---
-// 'wrap' = one copy of image stretched around shirt (cylindrical projection)
-// 'tile' = repeat pattern (old behaviour)
+const products = {
+    shirt:  { path:'models/t_shirt.glb',        group:null, meshes:[], ready:false, uvMode:'cylindrical' },
+    cup:    { path:'models/mug_new.glb',        group:null, meshes:[], ready:false, uvMode:'cylindrical', padding:{ top:0.05, bottom:0.05 } },
+    laptop: { path:'models/office_laptop.glb',  group:null, meshes:[], ready:false, uvMode:'planar-back', padding:{ margin:0.08 } }
+};
+
 const COVER_MODE = 'wrap';
-// Force regenerate cylindrical UVs for every mesh (ignores original model UVs)
 const FORCE_CYLINDRICAL_UV = true;
 
 // --- Helper: UV Fallback Generation & Diagnostics ---
@@ -138,149 +139,97 @@ function createOrGetTestGridTexture() {
     return testGridTexture;
 }
 
-loader.load(
-    'models/t_shirt.glb', // Path to your 3D model
-    function (gltf) {
-        const model = gltf.scene;
-        
-        // Traverse the model to find the mesh we want to apply the texture to
-        model.traverse((child) => {
+// UV helpers
+function generateCylindricalUVsPadded(geometry, padTop=0, padBottom=0) {
+    geometry.computeBoundingBox();
+    const bb = geometry.boundingBox; const size = new THREE.Vector3(); bb.getSize(size);
+    const posAttr = geometry.attributes.position; const count = posAttr.count; const uvs = new Float32Array(count*2);
+    const TWO_PI = Math.PI*2; const span = 1 - padTop - padBottom;
+    for (let i=0;i<count;i++) {
+        const x=posAttr.getX(i), y=posAttr.getY(i), z=posAttr.getZ(i);
+        let angle=Math.atan2(z,x); angle=(angle+Math.PI)/TWO_PI;
+        let v=(y-bb.min.y)/(size.y||1); v = padBottom + v*span;
+        uvs[i*2]=angle; uvs[i*2+1]=THREE.MathUtils.clamp(v,0,1);
+    }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs,2));
+    console.log('[UVCylPad] verts=', count, 'padTop=', padTop, 'padBottom=', padBottom);
+}
+function generatePlanarBackUVs(geometry, margin=0) {
+    geometry.computeBoundingBox(); const bb=geometry.boundingBox; const size=new THREE.Vector3(); bb.getSize(size);
+    const posAttr=geometry.attributes.position; const count=posAttr.count; const uvs=new Float32Array(count*2); const span=1-margin*2;
+    for (let i=0;i<count;i++) { let x=posAttr.getX(i); let y=posAttr.getY(i); let u=(x-bb.min.x)/(size.x||1); let v=(y-bb.min.y)/(size.y||1); if (margin>0){u=margin+u*span; v=margin+v*span;} uvs[i*2]=THREE.MathUtils.clamp(u,0,1); uvs[i*2+1]=THREE.MathUtils.clamp(v,0,1);} 
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs,2));
+    console.log('[UVPlanarBack] XY verts=', count, 'margin=', margin);
+}
+
+function loadProduct(key) {
+    const p = products[key]; if (!p || p.ready) return; console.log('[Product] Loading', key);
+    loader.load(p.path, gltf => {
+        p.group = gltf.scene; p.group.visible = (key===activeProductKey);
+        p.group.traverse(child=>{
             if (child.isMesh) {
-                console.log('[ModelLoad] Found mesh candidate:', child.name, 'materialType=', child.material?.type);
-                if (!tShirtMesh) {
-                    tShirtMesh = child; // pick first by default
-                    console.log('[ModelLoad] Selected primary mesh for texturing:', child.name);
+                p.meshes.push(child);
+                if (p.uvMode==='cylindrical') {
+                    if (p.padding) generateCylindricalUVsPadded(child.geometry, p.padding.top||0, p.padding.bottom||0); else generateCylindricalUVs(child.geometry);
+                } else if (p.uvMode==='planar-back') {
+                    generatePlanarBackUVs(child.geometry, p.padding?.margin||0);
                 }
-                if (FORCE_CYLINDRICAL_UV) generateCylindricalUVs(child.geometry);
-                tShirtMeshes.push(child);
                 logMeshDiagnostics(child);
+                child.material = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.8, metalness:0.1 });
             }
         });
-
-    if (!tShirtMesh) {
-            console.error("Could not find any mesh in the loaded model.");
-            return;
+        scene.add(p.group); p.ready=true; console.log('[Product] Ready', key, 'meshes=', p.meshes.length);
+        if (key===activeProductKey) {
+            const initialTexturePath = document.querySelector('.swatch.active')?.dataset.texture;
+            if (initialTexturePath) updateTexture(initialTexturePath);
         }
+    }, undefined, err=>console.error('[Product] Load fail', key, err));
+}
 
-        // Set an initial material. A white base color is best for textures.
-        const baseMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            metalness: 0.1,
-            roughness: 0.8
-        });
-        // Assign a fresh material instance to each mesh to ensure texture shows on all parts
-        tShirtMeshes.forEach((m, idx) => {
-            m.material = baseMaterial.clone();
-            m.material.vertexColors = false;
-            m.material.name = `TShirtMaterial_${idx}`;
-        });
-        console.log('[Material] Assigned new MeshStandardMaterial to', tShirtMeshes.length, 'mesh part(s).');
+function switchProduct(newKey) {
+    if (!products[newKey] || activeProductKey===newKey) return; const old=products[activeProductKey]; if (old?.group) old.group.visible=false;
+    activeProductKey=newKey; const np=products[newKey]; if (!np.ready) loadProduct(newKey); else { np.group.visible=true; if (lastUserTexture) applyTextureToActive(lastUserTexture); }
+    document.querySelectorAll('.product-btn').forEach(b=>b.classList.toggle('active', b.dataset.product===activeProductKey));
+}
 
-        scene.add(model);
-        
-        // Load the initially active texture once the model is ready
-        const initialTexturePath = document.querySelector('.swatch.active').dataset.texture;
-        updateTexture(initialTexturePath);
-    },
-    undefined, // onProgress callback (optional)
-    function (error) {
-        console.error('An error happened while loading the model:', error);
-    }
-);
+// Kick off loads
+loadProduct('shirt'); setTimeout(()=>{ loadProduct('cup'); loadProduct('laptop'); }, 400);
 
 // 8. Texture Swapping Logic
 const textureLoader = new THREE.TextureLoader();
 
+function applyTextureToActive(tex) {
+    const p = products[activeProductKey]; if (!p?.meshes.length) return;
+    p.meshes.forEach((m,i)=>{
+        if (p.uvMode==='cylindrical' && FORCE_CYLINDRICAL_UV) {
+            if (p.padding) generateCylindricalUVsPadded(m.geometry, p.padding.top||0, p.padding.bottom||0); else generateCylindricalUVs(m.geometry);
+        } else if (p.uvMode==='planar-back') {
+            generatePlanarBackUVs(m.geometry, p.padding?.margin||0);
+        }
+        if (!m.material || !(m.material instanceof THREE.MeshStandardMaterial)) {
+            m.material = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.8, metalness:0.1 });
+        }
+        m.material.map = tex; m.material.needsUpdate = true;
+        console.log(`[Texture] Applied to ${activeProductKey} mesh #${i}`);
+    });
+}
+
 function updateTexture(texturePath) {
-    if (!tShirtMesh) {
-        console.warn('updateTexture called before the t-shirt mesh was loaded.');
-        return;
-    }
-
-    console.log(`Attempting to load and apply texture: ${texturePath}`);
-
-    textureLoader.load(
-        texturePath, 
-        // onLoad callback
-        (texture) => {
-            console.log('[Texture] Loaded successfully. size=', texture.image?.width, 'x', texture.image?.height);
-            lastUserTexture = texture; // remember last real texture
-            
-            // These settings are crucial for GLB/GLTF models
-            texture.flipY = false; 
-            texture.colorSpace = THREE.SRGBColorSpace;
-
-            // Configure wrapping based on COVER_MODE
-            if (COVER_MODE === 'wrap') {
-                texture.wrapS = THREE.RepeatWrapping; // horizontal seam at U=0/1
-                texture.wrapT = THREE.ClampToEdgeWrapping; // no vertical repeat
-                texture.repeat.set(1, 1);
-            } else { // tile mode
-                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                tShirtMesh.geometry.computeBoundingBox();
-                const bb = tShirtMesh.geometry.boundingBox;
-                const size = new THREE.Vector3();
-                bb.getSize(size);
-                const tileDensity = 1.5;
-                const repeatX = Math.max(1, Math.round(size.x * tileDensity));
-                const repeatY = Math.max(1, Math.round(size.y * tileDensity));
-                texture.repeat.set(repeatX, repeatY);
-            }
-            console.log(`[Texture] Mode=${COVER_MODE} repeat=${texture.repeat.x},${texture.repeat.y}`);
-
-            // Apply map to all mesh materials (recreate material if map slot not present)
-            tShirtMeshes.forEach((m, idx) => {
-                if (!m.material || !(m.material instanceof THREE.MeshStandardMaterial)) {
-                    m.material = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness:0.1, roughness:0.8, vertexColors:false });
-                }
-                if (FORCE_CYLINDRICAL_UV) generateCylindricalUVs(m.geometry);
-                m.material.map = texture;
-                m.material.needsUpdate = true;
-                console.log(`[Texture] Applied to mesh part #${idx} name=${m.name} material=${m.material.name}`);
-            });
-            console.log('[Texture] Completed applying texture to all parts.');
+    const p = products[activeProductKey]; if (!p?.meshes.length) { console.warn('Product not ready', activeProductKey); return; }
+    console.log('[Texture] Loading', texturePath, 'for', activeProductKey);
+    textureLoader.load(texturePath, tex => {
+        lastUserTexture = tex; tex.flipY=false; tex.colorSpace=THREE.SRGBColorSpace;
+        if (p.uvMode==='cylindrical') { tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.ClampToEdgeWrapping; }
+        else { tex.wrapS=THREE.ClampToEdgeWrapping; tex.wrapT=THREE.ClampToEdgeWrapping; }
+        tex.repeat.set(1,1);
+        applyTextureToActive(tex);
+        if (!debugTexturePlane) { const g=new THREE.PlaneGeometry(0.6,0.6); const m=new THREE.MeshBasicMaterial({ map:tex, side:THREE.DoubleSide }); debugTexturePlane=new THREE.Mesh(g,m); debugTexturePlane.position.set(-1.2,0.8,0); scene.add(debugTexturePlane); }
+        else { debugTexturePlane.material.map = tex; debugTexturePlane.material.needsUpdate=true; }
+    }, undefined, err=>console.error('[Texture] Failed', texturePath, err));
+}
 
 // Keyboard toggle for UV test grid (press G)
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'g') {
-        if (!tShirtMeshes.length) return;
-        const usingGrid = tShirtMeshes[0].material.map === testGridTexture;
-        if (usingGrid) {
-            if (lastUserTexture) {
-                console.log('[UVTestGrid] Restoring last user texture.');
-                tShirtMeshes.forEach(m=>{m.material.map = lastUserTexture; m.material.needsUpdate = true;});
-            }
-        } else {
-            const grid = createOrGetTestGridTexture();
-            console.log('[UVTestGrid] Applying test grid texture (press G again to restore).');
-            tShirtMeshes.forEach(m=>{m.material.map = grid; m.material.needsUpdate = true;});
-        }
-    }
-});
-
-            // Create or update a debug plane with the same texture so we can visually confirm the texture data.
-            if (!debugTexturePlane) {
-                const planeGeo = new THREE.PlaneGeometry(0.6, 0.6);
-                const planeMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
-                debugTexturePlane = new THREE.Mesh(planeGeo, planeMat);
-                debugTexturePlane.name = 'TextureDebugPlane';
-                // Position it slightly to the side / front
-                debugTexturePlane.position.set(-1.2, 0.8, 0);
-                scene.add(debugTexturePlane);
-                console.log('[DebugPlane] Created debug texture plane.');
-            } else {
-                debugTexturePlane.material.map = texture;
-                debugTexturePlane.material.needsUpdate = true;
-                console.log('[DebugPlane] Updated existing debug texture plane.');
-            }
-        },
-        undefined, // onProgress callback (optional)
-        // onError callback
-        (error) => {
-            console.error(`An error happened while loading the texture: ${texturePath}`, error);
-        }
-    );
-}
+// (Removed obsolete single-product debug plane code block)
 
 // --- UI AND ANIMATION ---
 
@@ -316,8 +265,7 @@ function generateDotsTexture() {
 
 function applyGeneratedTexture(tex) {
     tex.flipY=false; tex.colorSpace=THREE.SRGBColorSpace; tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.ClampToEdgeWrapping; tex.repeat.set(1,1);
-    tShirtMeshes.forEach((m,idx)=>{ m.material.map=tex; m.material.needsUpdate=true; console.log('[Pattern] Applied to part', idx); });
-    lastUserTexture=tex;
+    applyTextureToActive(tex); lastUserTexture=tex;
 }
 
 const patternButtons = document.querySelectorAll('.pattern-gen');
@@ -339,76 +287,25 @@ if (!patternButtons.length) {
         });
     });
 }
-
-// Image buttons (text buttons to load existing artwork images)
-const IMAGE_LIST = [
-  {label:'Warli 1', path:'artworks/warli1.jpg'},
-  {label:'Warli 2', path:'artworks/warli2.jpg'},
-  {label:'Madhubani 1', path:'artworks/madhubani1.jpg'},
-  {label:'Madhubani 2', path:'artworks/madhubani2.jpg'}
-];
-let imageButtonsContainer = document.getElementById('image-buttons');
-if (!imageButtonsContainer) {
-    console.warn('[UI] #image-buttons container missing; creating dynamically.');
-    imageButtonsContainer = document.createElement('div');
-    imageButtonsContainer.id='image-buttons';
-    document.body.appendChild(imageButtonsContainer);
-}
-let activeImageBtn = null;
-if (imageButtonsContainer) {
-    console.log('[UI] Creating image buttons:', IMAGE_LIST.length);
-    IMAGE_LIST.forEach((img, idx) => {
-        const b = document.createElement('button');
-        b.className = 'image-btn' + (idx===0 ? ' active' : '');
-        if (idx===0) activeImageBtn = b;
-        b.textContent = img.label;
-        b.dataset.texture = img.path;
-        b.addEventListener('click', () => {
-            if (activeImageBtn === b) return;
-            activeImageBtn?.classList.remove('active');
-            b.classList.add('active');
-            activeImageBtn = b;
-            updateTexture(img.path);
-        });
-        imageButtonsContainer.appendChild(b);
-    });
-    // Also add thumbnail style buttons under text buttons
-    const thumbsRow = document.createElement('div');
-    thumbsRow.style.display='flex';
-    thumbsRow.style.gap='8px';
-    thumbsRow.style.marginTop='8px';
-    IMAGE_LIST.forEach((img, idx) => {
-        const t = document.createElement('button');
-        t.className='image-thumb-btn'+(idx===0?' active':'');
-        t.style.backgroundImage = `url(${img.path})`;
-        t.title = img.label;
-        t.addEventListener('click', ()=>{
-            imageButtonsContainer.querySelectorAll('.image-thumb-btn.active').forEach(a=>a.classList.remove('active'));
-            t.classList.add('active');
-            updateTexture(img.path);
-        });
-        thumbsRow.appendChild(t);
-    });
-    imageButtonsContainer.appendChild(thumbsRow);
-}
+// (Removed right-side image buttons panel logic)
 
 // Debug: press H to outline UI elements if still hidden
 window.addEventListener('keydown', e => {
-    if (e.key.toLowerCase()==='h') {
-        document.querySelectorAll('#pattern-buttons, #image-buttons, .pattern-gen, .image-btn, .image-thumb-btn').forEach(el=>{
-            el.style.outline = el.style.outline? '' : '2px dashed red';
-        });
-        console.log('[UI] Toggle debug outlines (H).');
-    }
+    const k = e.key.toLowerCase();
+        if (k==='h') {
+            document.querySelectorAll('#pattern-buttons, .pattern-gen').forEach(el=>{ el.style.outline = el.style.outline? '' : '2px dashed red';});
+    } else if (k==='g') {
+        const p = products[activeProductKey]; if (!p.meshes.length) return; const usingGrid = p.meshes[0].material.map === testGridTexture;
+        if (usingGrid && lastUserTexture) { p.meshes.forEach(m=>{ m.material.map=lastUserTexture; m.material.needsUpdate=true; }); }
+        else { const grid=createOrGetTestGridTexture(); p.meshes.forEach(m=>{ m.material.map=grid; m.material.needsUpdate=true; }); }
+    } else if (k==='1') switchProduct('shirt'); else if (k==='2') switchProduct('cup'); else if (k==='3') switchProduct('laptop');
 });
 
-// 10. Animation Loop
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update(); // Required if enableDamping is true
-    renderer.render(scene, camera);
-}
+// Product button events
+document.querySelectorAll('.product-btn').forEach(btn=>btn.addEventListener('click', ()=>switchProduct(btn.dataset.product)));
 
+// 10. Animation Loop
+function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); }
 animate();
 
 // 11. Handle Window Resizing

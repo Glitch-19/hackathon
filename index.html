@@ -24,6 +24,13 @@
     <!-- This container will hold the 3D canvas -->
     <div id="viewer-container"></div>
 
+    <!-- Product selection buttons -->
+    <div id="product-buttons" aria-label="Select Product">
+        <button class="product-btn active" data-product="shirt">T-Shirt</button>
+        <button class="product-btn" data-product="cup">Cup</button>
+        <button class="product-btn" data-product="laptop">Laptop</button>
+    </div>
+
     <!-- This panel contains the UI for selecting different artworks -->
     <div id="customizer-panel">
         <h3>Choose an Artwork</h3>
@@ -36,15 +43,9 @@
         </div>
     </div>
 
-    <!-- Procedural pattern buttons (always visible bottom-left) -->
-    <div id="pattern-buttons">
-        <button class="pattern-gen" data-pattern="stripes">Stripes</button>
-        <button class="pattern-gen" data-pattern="checker">Checker</button>
-        <button class="pattern-gen" data-pattern="dots">Dots</button>
-    </div>
+    
 
-    <!-- Image buttons (alternative to thumbnails) -->
-    <div id="image-buttons"></div>
+    <!-- Right image buttons panel removed -->
 
     <!-- The main JavaScript file that handles all the Three.js logic -->
     <script type="module" src="script.js"></script>
