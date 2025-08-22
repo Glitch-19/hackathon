@@ -16,6 +16,7 @@ camera.position.z = 2;
 // 3. Renderer Setup
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace; // Correct color output
 container.appendChild(renderer.domElement);
 
 // 4. Lighting
@@ -32,7 +33,7 @@ controls.enableDamping = true;
 
 // 6. Load the 3D Model
 const loader = new GLTFLoader();
-let modelMesh = null; // This will hold the part of the model we want to customize
+let modelMeshes = []; // This will hold all the mesh parts of the model
 
 loader.load(
     'models/t_shirt.glb', // Path to your 3D model
@@ -41,29 +42,19 @@ loader.load(
         
         console.log('Model loaded, traversing children...', gltf.scene);
 
-        // Find the mesh to apply the texture to.
-        // We'll try to find a mesh named 'T_Shirt_male' or fall back to the largest one.
-        let mainMesh = null;
-        let largestMesh = null;
-
+        // Find and store all meshes from the model
         model.traverse((child) => {
             if (child.isMesh) {
-                console.log('Found mesh:', child.name, 'with', child.geometry.attributes.position.count, 'vertices.');
-                if (child.name === 'T_Shirt_male') { // A guess for the main mesh name
-                    mainMesh = child;
-                }
-                if (!largestMesh || child.geometry.attributes.position.count > largestMesh.geometry.attributes.position.count) {
-                    largestMesh = child;
-                }
+                console.log('Found mesh:', child.name);
+                modelMeshes.push(child);
             }
         });
 
-        modelMesh = mainMesh || largestMesh; // Prioritize named mesh
-        if (modelMesh) {
-            console.log('Selected mesh for texturing:', modelMesh.name);
+        if (modelMeshes.length > 0) {
+            console.log(`Found ${modelMeshes.length} meshes to texture.`);
         } else {
-            console.error("Could not find a suitable mesh for texturing.");
-            return; // Stop if no mesh found
+            console.error("Could not find any meshes in the model.");
+            return; // Stop if no meshes found
         }
 
         scene.add(model);
@@ -81,8 +72,8 @@ loader.load(
 const textureLoader = new THREE.TextureLoader();
 
 function updateTexture(texturePath) {
-    if (!modelMesh) {
-        console.log('updateTexture called but modelMesh is not set.');
+    if (modelMeshes.length === 0) {
+        console.log('updateTexture called but no model meshes are set.');
         return;
     }
 
@@ -97,7 +88,7 @@ function updateTexture(texturePath) {
         texture.repeat.set(8, 8); // Increased tiling to make the pattern more visible
         
         texture.flipY = false; 
-        texture.encoding = THREE.sRGBEncoding;
+        texture.colorSpace = THREE.SRGBColorSpace;
         
         // Create a new material to ensure settings are applied correctly
         const newMaterial = new THREE.MeshStandardMaterial({
@@ -106,8 +97,11 @@ function updateTexture(texturePath) {
             roughness: 0.8,
         });
         
-        modelMesh.material = newMaterial;
-        console.log('Texture and new material applied.');
+        // Apply the new material to all meshes
+        modelMeshes.forEach(mesh => {
+            mesh.material = newMaterial;
+        });
+        console.log('Texture and new material applied to all meshes.');
     },
     undefined,
     (error) => {
