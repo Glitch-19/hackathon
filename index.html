@@ -1,36 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
-    <title>3D Customizer</title>
+    <!-- Ensures the page is responsive and scales correctly on all devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D T-Shirt Customizer</title>
     <link rel="stylesheet" href="style.css" />
 
-    <!-- Import Map -->
+    <!-- 
+      Import Map: A modern browser feature that allows you to use bare module specifiers,
+      making imports cleaner (e.g., "three" instead of a full URL).
+    -->
     <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+            }
         }
-      }
     </script>
-  </head>
-  <body>
-    <!-- 3D Viewer -->
+</head>
+<body>
+    <!-- This container will hold the 3D canvas -->
     <div id="viewer-container"></div>
 
-    <!-- Customizer Panel -->
+    <!-- This panel contains the UI for selecting different artworks -->
     <div id="customizer-panel">
-      <h3>Choose an Artwork</h3>
-      <div class="swatches">
-        <img src="artworks/warli1.jpg" alt="Warli Art 1" data-texture="artworks/warli1.jpg" class="swatch active">
-        <img src="artworks/warli2.jpg" alt="Warli Art 2" data-texture="artworks/warli2.jpg" class="swatch"> 
-        <img src="artworks/madhubani1.jpg" alt="Madhubani Art" data-texture="artworks/madhubani1.jpg" class="swatch">
-        <img src="artworks/madhubani2.jpg" alt="Modern Art" data-texture="artworks/madhubani2.jpg" class="swatch">
-      </div>
+        <h3>Choose an Artwork</h3>
+        <div class="swatches">
+            <!-- Each image acts as a button to change the texture on the 3D model -->
+            <img src="artworks/warli1.jpg" alt="Warli Art 1" data-texture="artworks/warli1.jpg" class="swatch active">
+            <img src="artworks/warli2.jpg" alt="Warli Art 2" data-texture="artworks/warli2.jpg" class="swatch"> 
+            <img src="artworks/madhubani1.jpg" alt="Madhubani Art" data-texture="artworks/madhubani1.jpg" class="swatch">
+            <img src="artworks/madhubani2.jpg" alt="Modern Art" data-texture="artworks/madhubani2.jpg" class="swatch">
+        </div>
     </div>
 
-    <!-- Three.js Script -->
+    <!-- The main JavaScript file that handles all the Three.js logic -->
     <script type="module" src="script.js"></script>
-  </body>
+</body>
 </html>
