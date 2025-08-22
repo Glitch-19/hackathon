@@ -41,16 +41,30 @@ loader.load(
         
         console.log('Model loaded, traversing children...', gltf.scene);
 
-        // Find the mesh to apply the texture to (likely the one with the most vertices)
+        // Find the mesh to apply the texture to.
+        // We'll try to find a mesh named 'T_Shirt_male' or fall back to the largest one.
+        let mainMesh = null;
+        let largestMesh = null;
+
         model.traverse((child) => {
             if (child.isMesh) {
                 console.log('Found mesh:', child.name, 'with', child.geometry.attributes.position.count, 'vertices.');
-                if (!modelMesh || child.geometry.attributes.position.count > modelMesh.geometry.attributes.position.count) {
-                    modelMesh = child;
-                    console.log('New candidate for texturing:', modelMesh.name);
+                if (child.name === 'T_Shirt_male') { // A guess for the main mesh name
+                    mainMesh = child;
+                }
+                if (!largestMesh || child.geometry.attributes.position.count > largestMesh.geometry.attributes.position.count) {
+                    largestMesh = child;
                 }
             }
         });
+
+        modelMesh = mainMesh || largestMesh; // Prioritize named mesh
+        if (modelMesh) {
+            console.log('Selected mesh for texturing:', modelMesh.name);
+        } else {
+            console.error("Could not find a suitable mesh for texturing.");
+            return; // Stop if no mesh found
+        }
 
         scene.add(model);
         
@@ -80,7 +94,7 @@ function updateTexture(texturePath) {
         // Ensure the texture repeats, which is crucial for patterns
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(2, 2); // Repeat the texture 2x2 times
+        texture.repeat.set(8, 8); // Increased tiling to make the pattern more visible
         
         texture.flipY = false; 
         texture.encoding = THREE.sRGBEncoding;
