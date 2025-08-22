@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D Customizer</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Import Map -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- 3D Viewer -->
+    <div id="viewer-container"></div>
+
+    <!-- Customizer Panel -->
+    <div id="customizer-panel">
+      <h3>Choose an Artwork</h3>
+      <div class="swatches">
+        <img src="artworks/warli1.jpg" alt="Warli Art 1" data-texture="artworks/warli1.jpg" class="swatch active">
+        <img src="artworks/warli2.jpg" alt="Warli Art 2" data-texture="artworks/warli2.jpg" class="swatch"> 
+        <img src="artworks/madhubani1.jpg" alt="Madhubani Art" data-texture="artworks/madhubani1.jpg" class="swatch">
+        <img src="artworks/madhubani2.jpg" alt="Modern Art" data-texture="artworks/madhubani2.jpg" class="swatch">
+      </div>
+    </div>
+
+    <!-- Three.js Script -->
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

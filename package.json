@@ -1,0 +1,11 @@
+{
+        "0": {
+                "type": "command",
+                "details": {
+                        "key": "workbench.action.terminal.new"
+                }
+        },
+        "dependencies": {
+                "three": "^0.179.1"
+        }
+}
