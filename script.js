@@ -82,7 +82,7 @@ function updateTexture(texturePath) {
     textureLoader.load(texturePath, (texture) => {
         console.log('Texture loaded:', texture);
         
-        // Ensure the texture repeats, which is crucial for patterns
+        
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(8, 8); // Increased tiling to make the pattern more visible
