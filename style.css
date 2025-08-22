@@ -47,3 +47,113 @@ body {
 .swatch.active {
     border-color: #007bff;
 }
+
+#pattern-buttons {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000; /* ensure above canvas */
+    pointer-events: all;
+}
+
+.pattern-gen {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(4px);
+    border: 1px solid #999;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: background .2s, transform .15s, border-color .2s;
+}
+.pattern-gen:hover { background:#eef6ff; border-color:#007bff; }
+.pattern-gen.active { background:#007bff; color:#fff; border-color:#007bff; }
+
+#image-buttons {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 1000;
+    pointer-events: all;
+}
+.image-btn {
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+}
+.image-btn:hover { background:#f3f8ff; border-color:#007bff; }
+.image-btn.active { background:#007bff; color:#fff; border-color:#007bff; }
+
+/* Thumbnail style buttons (if generated) */
+.image-thumb-btn {
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    background-size: cover;
+    background-position: center;
+    border-radius: 8px;
+    border: 2px solid #ddd;
+    cursor: pointer;
+    transition: transform .15s, border-color .2s;
+}
+.image-thumb-btn:hover { transform: scale(1.06); }
+.image-thumb-btn.active { border-color:#007bff; }
+
+/* New bottom design bar */
+#design-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 12px 16px;
+    background: linear-gradient(to top, rgba(0,0,0,0.35), rgba(0,0,0,0));
+    box-sizing: border-box;
+    pointer-events: none; /* allow inner scroll area to capture */
+}
+
+#design-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 14px;
+    backdrop-filter: blur(6px);
+    max-width: 86vw;
+    margin: 0 auto;
+    pointer-events: all;
+}
+
+.design-thumb {
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    border: 2px solid #ddd;
+    cursor: pointer;
+    object-fit: cover;
+    transition: transform .18s, border-color .18s, box-shadow .18s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    background: #f8f8f8 center/cover no-repeat;
+}
+.design-thumb:hover { transform: translateY(-4px) scale(1.05); }
+.design-thumb.active {
+    border-color: #007bff;
+    box-shadow: 0 4px 10px rgba(0,123,255,0.4);
+}
+
+/* Hide scrollbar (webkit) */
+#design-scroll::-webkit-scrollbar { height: 8px; }
+#design-scroll::-webkit-scrollbar-track { background: transparent; }
+#design-scroll::-webkit-scrollbar-thumb { background: #bbb; border-radius: 4px; }

@@ -299,6 +299,109 @@ swatches.forEach(swatch => {
     });
 });
 
+// Procedural pattern generators
+function makeCanvas(size=1024) { const c=document.createElement('canvas'); c.width=c.height=size; return c; }
+
+function generateStripesTexture() {
+    const c = makeCanvas(1024); const ctx=c.getContext('2d');
+    for(let i=0;i<32;i++){ ctx.fillStyle=i%2? '#8a1d1d':'#ffffff'; ctx.fillRect(i*32,0,32,1024);} 
+    return new THREE.CanvasTexture(c);
+}
+function generateCheckerTexture() {
+    const c=makeCanvas(512); const ctx=c.getContext('2d'); const s=32; for(let y=0;y<512;y+=s){for(let x=0;x<512;x+=s){ctx.fillStyle=((x+y)/s)%2? '#5c2d8a':'#ffffff'; ctx.fillRect(x,y,s,s);}} return new THREE.CanvasTexture(c);
+}
+function generateDotsTexture() {
+    const c=makeCanvas(512); const ctx=c.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,512,512); ctx.fillStyle='#0b5d2a'; for(let y=16;y<512;y+=48){for(let x=16;x<512;x+=48){ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();}} return new THREE.CanvasTexture(c);
+}
+
+function applyGeneratedTexture(tex) {
+    tex.flipY=false; tex.colorSpace=THREE.SRGBColorSpace; tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.ClampToEdgeWrapping; tex.repeat.set(1,1);
+    tShirtMeshes.forEach((m,idx)=>{ m.material.map=tex; m.material.needsUpdate=true; console.log('[Pattern] Applied to part', idx); });
+    lastUserTexture=tex;
+}
+
+const patternButtons = document.querySelectorAll('.pattern-gen');
+if (!patternButtons.length) {
+    console.warn('[UI] No .pattern-gen buttons found in DOM at startup.');
+} else {
+    console.log('[UI] Pattern buttons found:', patternButtons.length);
+    patternButtons.forEach(btn=>{
+        btn.style.pointerEvents='auto';
+        btn.addEventListener('click', ()=>{
+            document.querySelector('.pattern-gen.active')?.classList.remove('active');
+            btn.classList.add('active');
+            const type=btn.dataset.pattern;
+            let tex;
+            if(type==='stripes') tex=generateStripesTexture();
+            else if(type==='checker') tex=generateCheckerTexture();
+            else tex=generateDotsTexture();
+            applyGeneratedTexture(tex);
+        });
+    });
+}
+
+// Image buttons (text buttons to load existing artwork images)
+const IMAGE_LIST = [
+  {label:'Warli 1', path:'artworks/warli1.jpg'},
+  {label:'Warli 2', path:'artworks/warli2.jpg'},
+  {label:'Madhubani 1', path:'artworks/madhubani1.jpg'},
+  {label:'Madhubani 2', path:'artworks/madhubani2.jpg'}
+];
+let imageButtonsContainer = document.getElementById('image-buttons');
+if (!imageButtonsContainer) {
+    console.warn('[UI] #image-buttons container missing; creating dynamically.');
+    imageButtonsContainer = document.createElement('div');
+    imageButtonsContainer.id='image-buttons';
+    document.body.appendChild(imageButtonsContainer);
+}
+let activeImageBtn = null;
+if (imageButtonsContainer) {
+    console.log('[UI] Creating image buttons:', IMAGE_LIST.length);
+    IMAGE_LIST.forEach((img, idx) => {
+        const b = document.createElement('button');
+        b.className = 'image-btn' + (idx===0 ? ' active' : '');
+        if (idx===0) activeImageBtn = b;
+        b.textContent = img.label;
+        b.dataset.texture = img.path;
+        b.addEventListener('click', () => {
+            if (activeImageBtn === b) return;
+            activeImageBtn?.classList.remove('active');
+            b.classList.add('active');
+            activeImageBtn = b;
+            updateTexture(img.path);
+        });
+        imageButtonsContainer.appendChild(b);
+    });
+    // Also add thumbnail style buttons under text buttons
+    const thumbsRow = document.createElement('div');
+    thumbsRow.style.display='flex';
+    thumbsRow.style.gap='8px';
+    thumbsRow.style.marginTop='8px';
+    IMAGE_LIST.forEach((img, idx) => {
+        const t = document.createElement('button');
+        t.className='image-thumb-btn'+(idx===0?' active':'');
+        t.style.backgroundImage = `url(${img.path})`;
+        t.title = img.label;
+        t.addEventListener('click', ()=>{
+            imageButtonsContainer.querySelectorAll('.image-thumb-btn.active').forEach(a=>a.classList.remove('active'));
+            t.classList.add('active');
+            updateTexture(img.path);
+        });
+        thumbsRow.appendChild(t);
+    });
+    imageButtonsContainer.appendChild(thumbsRow);
+}
+
+// Debug: press H to outline UI elements if still hidden
+window.addEventListener('keydown', e => {
+    if (e.key.toLowerCase()==='h') {
+        document.querySelectorAll('#pattern-buttons, #image-buttons, .pattern-gen, .image-btn, .image-thumb-btn').forEach(el=>{
+            el.style.outline = el.style.outline? '' : '2px dashed red';
+        });
+        console.log('[UI] Toggle debug outlines (H).');
+    }
+});
+
 // 10. Animation Loop
 function animate() {
     requestAnimationFrame(animate);
